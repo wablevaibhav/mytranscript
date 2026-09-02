@@ -5,9 +5,10 @@
 import { Meeting, MeetingStatus, TranscriptEntry } from './types';
 
 export type ExtensionMessage =
-  // Popup -> Service Worker
+  // Popup & Content Script -> Service Worker
   | { type: 'START_RECORDING'; payload: { tabId: number; meetCode: string; url: string } }
-  | { type: 'STOP_RECORDING'; payload: { meetingId: string } }
+  | { type: 'AUTO_START_RECORDING'; payload: { tabId?: number; meetCode: string; url: string } }
+  | { type: 'STOP_RECORDING'; payload?: { meetingId?: string } }
   | { type: 'PAUSE_RECORDING'; payload: { meetingId: string } }
   | { type: 'RESUME_RECORDING'; payload: { meetingId: string } }
   | { type: 'GET_STATUS' }
@@ -30,6 +31,7 @@ export type ExtensionMessage =
   | { type: 'CAPTION_UPDATE'; payload: { meetingId: string; entry: TranscriptEntry } }
   | { type: 'MEET_PAGE_DETECTED'; payload: { meetCode: string; url: string } }
   | { type: 'MEET_PAGE_LEFT'; payload: { meetCode: string } }
+  | { type: 'MEET_CALL_ENDED'; payload: { meetCode: string } }
 
   // Broadcasts (Service Worker -> Popup)
   | { type: 'RECORDING_STATE_CHANGED'; payload: { meeting: Meeting; status: MeetingStatus } }

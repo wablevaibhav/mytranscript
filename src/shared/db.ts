@@ -117,8 +117,92 @@ export async function updateMeeting(id: string, updates: Partial<Meeting>): Prom
   });
 }
 
+export async function getAllMeetings(): Promise<Meeting[]> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.MEETINGS, 'readonly');
+    const store = tx.objectStore(STORES.MEETINGS);
+    const request = store.openCursor(null, 'prev');
+    const results: Meeting[] = [];
+
+    request.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        results.push(cursor.value as Meeting);
+        cursor.continue();
+      } else {
+        resolve(results);
+      }
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export interface DatabaseStats {
+  totalMeetings: number;
+  totalDurationSec: number;
+  totalTranscripts: number;
+  totalRecordingBytes: number;
+}
+
+export async function getDatabaseStats(): Promise<DatabaseStats> {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORES.MEETINGS, STORES.TRANSCRIPTS, STORES.RECORDING_CHUNKS], 'readonly');
+    const meetingStore = tx.objectStore(STORES.MEETINGS);
+    const transcriptStore = tx.objectStore(STORES.TRANSCRIPTS);
+    const chunkStore = tx.objectStore(STORES.RECORDING_CHUNKS);
+
+    let totalDurationSec = 0;
+    let totalRecordingBytes = 0;
+    let totalMeetings = 0;
+    let totalTranscripts = 0;
+
+    const mReq = meetingStore.openCursor();
+    mReq.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const m = cursor.value as Meeting;
+        totalMeetings++;
+        totalDurationSec += m.duration || 0;
+        cursor.continue();
+      }
+    };
+
+    const tReq = transcriptStore.count();
+    tReq.onsuccess = () => {
+      totalTranscripts = tReq.result || 0;
+    };
+
+    const cReq = chunkStore.openCursor();
+    cReq.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const c = cursor.value as RecordingChunk;
+        totalRecordingBytes += c.byteLength || 0;
+        cursor.continue();
+      }
+    };
+
+    tx.oncomplete = () => {
+      resolve({
+        totalMeetings,
+        totalDurationSec,
+        totalTranscripts,
+        totalRecordingBytes,
+      });
+    };
+
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getActiveOrInterruptedMeeting(): Promise<Meeting | undefined> {
   const db = await getDB();
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  const now = Date.now();
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORES.MEETINGS, 'readonly');
     const store = tx.objectStore(STORES.MEETINGS);
@@ -128,18 +212,66 @@ export async function getActiveOrInterruptedMeeting(): Promise<Meeting | undefin
       const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
       if (cursor) {
         const meeting = cursor.value as Meeting;
+        // Keep active, paused, interrupted, or completed meetings within the 6-hour retention window
         if (
           meeting.status === 'recording' ||
           meeting.status === 'paused' ||
           meeting.status === 'interrupted' ||
           meeting.status === 'completed'
         ) {
-          resolve(meeting);
-          return;
+          if (meeting.status === 'completed') {
+            const age = now - (meeting.endedAt || meeting.startedAt);
+            if (age < SIX_HOURS_MS) {
+              resolve(meeting);
+              return;
+            }
+          } else {
+            resolve(meeting);
+            return;
+          }
         }
         cursor.continue();
       } else {
         resolve(undefined);
+      }
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Automatically purges meeting recordings and transcripts older than 6 hours
+ */
+export async function cleanupExpiredMeetings(maxAgeMs = 6 * 60 * 60 * 1000): Promise<number> {
+  const db = await getDB();
+  const now = Date.now();
+  let purgedCount = 0;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.MEETINGS, 'readonly');
+    const store = tx.objectStore(STORES.MEETINGS);
+    const request = store.openCursor();
+
+    const expiredIds: string[] = [];
+
+    request.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        const meeting = cursor.value as Meeting;
+        const meetingEnd = meeting.endedAt || meeting.startedAt;
+        if (meeting.status === 'completed' && now - meetingEnd > maxAgeMs) {
+          expiredIds.push(meeting.id);
+        }
+        cursor.continue();
+      } else {
+        // Delete all expired
+        Promise.all(expiredIds.map((id) => deleteMeetingData(id)))
+          .then(() => {
+            purgedCount = expiredIds.length;
+            resolve(purgedCount);
+          })
+          .catch(reject);
       }
     };
 

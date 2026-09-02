@@ -19,6 +19,9 @@ export class MediaRecorderEngine {
   private selectedMimeType: string = '';
 
   public async startCapture(streamId: string, meetingId: string, timesliceMs = 3000): Promise<string> {
+    // 0. Ensure any prior media streams and audio contexts are cleanly released
+    this.cleanup();
+
     this.meetingId = meetingId;
     this.chunkIndex = 0;
     this.totalBytes = 0;

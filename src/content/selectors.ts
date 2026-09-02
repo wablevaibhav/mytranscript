@@ -35,19 +35,38 @@ export const MEET_SELECTORS = {
     'span',
   ],
 
-  // Call status / meeting code indicators
-  MEETING_CODE_ELEMENTS: [
+  // Call status / meeting room indicators
+  MEETING_ROOM_INDICATORS: [
     'div[data-meeting-title]',
     'div[data-unresolved-meeting-id]',
-    'div[class*="meeting-code"]',
+    'button[aria-label*="Leave call" i]',
+    'button[aria-label*="leave" i]',
+    'button[jsname="CQylAd"]',
     'div[class*="u6vdEc"]',
   ],
 
   // Closed caption toggle button in Meet toolbar
   CAPTION_BUTTONS: [
+    'button[aria-label*="turn on caption" i]',
     'button[aria-label*="caption" i]',
     'button[aria-label*="subtítulo" i]',
     'button[data-tooltip*="caption" i]',
     'button[jsname="r8qRAd"]',
+  ],
+
+  // Leave call button selectors
+  LEAVE_CALL_BUTTONS: [
+    'button[aria-label*="Leave call" i]',
+    'button[aria-label*="Salir de la llamada" i]',
+    'button[data-tooltip*="Leave call" i]',
+    'button[jsname="CQylAd"]',
+  ],
+
+  // End of call / Left meeting screens
+  CALL_ENDED_CONTAINERS: [
+    'div[data-call-ended="true"]',
+    '.jh07Ec',
+    'div[class*="leave-screen"]',
+    'div[class*="left-meeting"]',
   ],
 };

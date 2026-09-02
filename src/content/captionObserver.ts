@@ -49,7 +49,7 @@ export class CaptionObserver {
       this.observer = null;
     }
     if (this.debounceTimer !== null) {
-      window.clearTimeout(this.debounceTimer);
+      clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
 
@@ -86,13 +86,13 @@ export class CaptionObserver {
     if (!this.isObserving) return;
 
     if (this.debounceTimer !== null) {
-      window.clearTimeout(this.debounceTimer);
+      clearTimeout(this.debounceTimer);
     }
 
     // Debounce to batch rapid characterData mutations
-    this.debounceTimer = window.setTimeout(() => {
+    this.debounceTimer = setTimeout(() => {
       this.parseCaptions();
-    }, 150);
+    }, 150) as unknown as number;
   }
 
   private parseCaptions(): void {
